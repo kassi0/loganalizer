@@ -8,3 +8,12 @@ wheels/
 
 # Virtual environments
 .venv
+venv/
+
+# Local databases and uploads
+*.db
+logs_analysis.db
+uploads/*
+!uploads/.gitkeep
+samples/*
+

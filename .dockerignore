@@ -1,0 +1,11 @@
+.git
+.gitignore
+.venv
+venv
+*.db
+logs_analysis.db
+uploads/*
+!uploads/.gitkeep
+samples/*
+__pycache__
+*.pyc
