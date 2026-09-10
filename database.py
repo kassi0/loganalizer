@@ -80,7 +80,9 @@ def init_db(drop_existing=False):
                 referer TEXT,
                 server_ip VARCHAR(64),
                 server_port BIGINT,
-                username VARCHAR(128)
+                username VARCHAR(128),
+                x_forwarded_for VARCHAR(128),
+                raw_log TEXT
             )
         """)
 
@@ -92,7 +94,9 @@ def init_db(drop_existing=False):
                     ALTER COLUMN substatus TYPE BIGINT,
                     ALTER COLUMN win32_status TYPE BIGINT,
                     ALTER COLUMN time_taken TYPE BIGINT,
-                    ALTER COLUMN server_port TYPE BIGINT;
+                    ALTER COLUMN server_port TYPE BIGINT,
+                    ADD COLUMN IF NOT EXISTS x_forwarded_for VARCHAR(128),
+                    ADD COLUMN IF NOT EXISTS raw_log TEXT;
             """)
         except Exception:
             pass
@@ -110,6 +114,8 @@ def init_db(drop_existing=False):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_uri_stem ON iis_logs(uri_stem)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_time_taken ON iis_logs(time_taken)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON iis_logs(timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_xff ON iis_logs(x_forwarded_for)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_server_port ON iis_logs(server_port)")
 
         conn.commit()
         cursor.close()
@@ -139,9 +145,19 @@ def init_db(drop_existing=False):
                 referer TEXT,
                 server_ip TEXT,
                 server_port INTEGER,
-                username TEXT
+                username TEXT,
+                x_forwarded_for TEXT,
+                raw_log TEXT
             )
         """)
+
+        # Migração defensiva para SQLite caso a tabela já exista de uma execução anterior
+        cursor.execute("PRAGMA table_info(iis_logs)")
+        existing_cols = {row[1] for row in cursor.fetchall()}
+        if "x_forwarded_for" not in existing_cols:
+            cursor.execute("ALTER TABLE iis_logs ADD COLUMN x_forwarded_for TEXT")
+        if "raw_log" not in existing_cols:
+            cursor.execute("ALTER TABLE iis_logs ADD COLUMN raw_log TEXT")
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS analysis_meta (
@@ -156,6 +172,8 @@ def init_db(drop_existing=False):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_uri_stem ON iis_logs(uri_stem)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_time_taken ON iis_logs(time_taken)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON iis_logs(timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_xff ON iis_logs(x_forwarded_for)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_server_port ON iis_logs(server_port)")
 
         conn.commit()
         cursor.close()
@@ -172,7 +190,8 @@ def save_records(records, stats):
             INSERT INTO iis_logs (
                 timestamp, log_date, log_time, client_ip, method, uri_stem,
                 uri_query, status, substatus, win32_status, time_taken,
-                user_agent, referer, server_ip, server_port, username
+                user_agent, referer, server_ip, server_port, username,
+                x_forwarded_for, raw_log
             ) VALUES %s
         """
         psycopg2.extras.execute_values(cursor, insert_sql, records, page_size=2000)
@@ -190,8 +209,9 @@ def save_records(records, stats):
             INSERT INTO iis_logs (
                 timestamp, log_date, log_time, client_ip, method, uri_stem,
                 uri_query, status, substatus, win32_status, time_taken,
-                user_agent, referer, server_ip, server_port, username
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                user_agent, referer, server_ip, server_port, username,
+                x_forwarded_for, raw_log
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         cursor.executemany(insert_sql, records)
 
@@ -422,7 +442,7 @@ def get_dashboard_data():
         cursor.close()
         conn.close()
 
-def query_logs(page=1, per_page=50, status=None, method=None, ip=None, uri=None, min_time=None, sort_by='id', sort_dir='desc'):
+def query_logs(page=1, per_page=50, status=None, method=None, ip=None, uri=None, min_time=None, xff=None, query_param=None, port=None, sort_by='id', sort_dir='desc'):
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -450,10 +470,17 @@ def query_logs(page=1, per_page=50, status=None, method=None, ip=None, uri=None,
             
         if ip:
             if DB_TYPE == "postgres":
-                where_clauses.append(f"client_ip ILIKE {ph}")
+                where_clauses.append(f"(client_ip ILIKE {ph} OR x_forwarded_for ILIKE {ph})")
             else:
-                where_clauses.append(f"client_ip LIKE {ph}")
-            params.append(f"%{ip}%")
+                where_clauses.append(f"(client_ip LIKE {ph} OR x_forwarded_for LIKE {ph})")
+            params.extend([f"%{ip}%", f"%{ip}%"])
+
+        if xff:
+            if DB_TYPE == "postgres":
+                where_clauses.append(f"x_forwarded_for ILIKE {ph}")
+            else:
+                where_clauses.append(f"x_forwarded_for LIKE {ph}")
+            params.append(f"%{xff}%")
             
         if uri:
             if DB_TYPE == "postgres":
@@ -461,6 +488,17 @@ def query_logs(page=1, per_page=50, status=None, method=None, ip=None, uri=None,
             else:
                 where_clauses.append(f"uri_stem LIKE {ph}")
             params.append(f"%{uri}%")
+
+        if query_param:
+            if DB_TYPE == "postgres":
+                where_clauses.append(f"uri_query ILIKE {ph}")
+            else:
+                where_clauses.append(f"uri_query LIKE {ph}")
+            params.append(f"%{query_param}%")
+
+        if port:
+            where_clauses.append(f"server_port = {ph}")
+            params.append(int(port))
             
         if min_time:
             where_clauses.append(f"time_taken >= {ph}")
@@ -472,7 +510,7 @@ def query_logs(page=1, per_page=50, status=None, method=None, ip=None, uri=None,
         cursor.execute(count_query, params)
         total_records = cursor.fetchone()[0]
         
-        valid_cols = {'id', 'timestamp', 'client_ip', 'method', 'uri_stem', 'status', 'time_taken'}
+        valid_cols = {'id', 'timestamp', 'client_ip', 'method', 'uri_stem', 'status', 'time_taken', 'server_port', 'x_forwarded_for'}
         if sort_by not in valid_cols:
             sort_by = 'id'
         sort_dir = 'ASC' if sort_dir.lower() == 'asc' else 'DESC'
@@ -481,7 +519,8 @@ def query_logs(page=1, per_page=50, status=None, method=None, ip=None, uri=None,
         
         data_query = f"""
             SELECT id, timestamp, client_ip, method, uri_stem, uri_query, status, substatus, 
-                   win32_status, time_taken, user_agent, referer, server_ip, server_port, username
+                   win32_status, time_taken, user_agent, referer, server_ip, server_port, username,
+                   x_forwarded_for, raw_log
             FROM iis_logs
             {where_sql}
             ORDER BY {sort_by} {sort_dir}
@@ -491,7 +530,8 @@ def query_logs(page=1, per_page=50, status=None, method=None, ip=None, uri=None,
         raw_rows = cursor.fetchall()
         
         cols = ['id', 'timestamp', 'client_ip', 'method', 'uri_stem', 'uri_query', 'status', 'substatus', 
-                'win32_status', 'time_taken', 'user_agent', 'referer', 'server_ip', 'server_port', 'username']
+                'win32_status', 'time_taken', 'user_agent', 'referer', 'server_ip', 'server_port', 'username',
+                'x_forwarded_for', 'raw_log']
         
         rows = [dict(zip(cols, r)) for r in raw_rows]
         total_pages = (total_records + per_page - 1) // per_page if total_records > 0 else 1
@@ -516,13 +556,17 @@ def get_distinct_filter_values():
         
         cursor.execute("SELECT DISTINCT status FROM iis_logs WHERE status != 0 ORDER BY status")
         statuses = [r[0] for r in cursor.fetchall()]
+
+        cursor.execute("SELECT DISTINCT server_port FROM iis_logs WHERE server_port != 0 ORDER BY server_port")
+        ports = [r[0] for r in cursor.fetchall()]
         
         return {
             "methods": methods,
-            "statuses": statuses
+            "statuses": statuses,
+            "ports": ports
         }
     except Exception:
-        return {"methods": [], "statuses": []}
+        return {"methods": [], "statuses": [], "ports": []}
     finally:
         cursor.close()
         conn.close()

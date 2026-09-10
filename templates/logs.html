@@ -30,18 +30,33 @@
     </div>
 
     <div class="filter-group">
-        <label for="filter-ip">IP do Cliente (c-ip)</label>
-        <input type="text" id="filter-ip" class="filter-input" placeholder="Ex: 192.168.1.50">
-    </div>
-
-    <div class="filter-group" style="flex: 2;">
-        <label for="filter-uri">URI / Caminho (cs-uri-stem)</label>
-        <input type="text" id="filter-uri" class="filter-input" placeholder="Ex: /api/v1/auth, .aspx, .png">
+        <label for="filter-ip">IP Cliente (c-ip)</label>
+        <input type="text" id="filter-ip" class="filter-input" placeholder="Ex: 10.21.246.232">
     </div>
 
     <div class="filter-group">
-        <label for="filter-min-time">Tempo Mínimo (ms)</label>
-        <input type="number" id="filter-min-time" class="filter-input" placeholder="Ex: 500">
+        <label for="filter-xff">X-Forwarded-For</label>
+        <input type="text" id="filter-xff" class="filter-input" placeholder="Ex: 191.235.33.58">
+    </div>
+
+    <div class="filter-group" style="flex: 2;">
+        <label for="filter-uri">URI / Caminho</label>
+        <input type="text" id="filter-uri" class="filter-input" placeholder="Ex: /api/v2/contrato/taxa">
+    </div>
+
+    <div class="filter-group">
+        <label for="filter-query">Query String</label>
+        <input type="text" id="filter-query" class="filter-input" placeholder="Ex: chassi=">
+    </div>
+
+    <div class="filter-group" style="max-width: 130px;">
+        <label for="filter-port">S-Port</label>
+        <input type="number" id="filter-port" class="filter-input" placeholder="Ex: 8082">
+    </div>
+
+    <div class="filter-group" style="max-width: 140px;">
+        <label for="filter-min-time">Tempo Mín. (ms)</label>
+        <input type="number" id="filter-min-time" class="filter-input" placeholder="Ex: 300">
     </div>
 
     <div style="display: flex; gap: 8px;">
@@ -76,10 +91,12 @@
                 <tr>
                     <th style="width: 60px;">ID</th>
                     <th class="sortable-th" data-sort="timestamp" title="Clique para ordenar por Data e Hora">
-                        <span>Data e Hora (UTC)</span>
+                        <span>Data e Hora</span>
                         <span class="sort-icon" id="sort-icon-timestamp">↕</span>
                     </th>
                     <th>IP Cliente</th>
+                    <th>X-Forwarded-For</th>
+                    <th>Port</th>
                     <th>Método</th>
                     <th>URI Path</th>
                     <th>Status</th>
@@ -87,12 +104,12 @@
                         <span>Latência</span>
                         <span class="sort-icon" id="sort-icon-time_taken">↕</span>
                     </th>
-                    <th>Detalhes</th>
+                    <th>Ações</th>
                 </tr>
             </thead>
             <tbody id="logs-tbody">
                 <tr>
-                    <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    <td colspan="10" style="text-align: center; padding: 40px; color: var(--text-muted);">
                         Carregando registros...
                     </td>
                 </tr>
@@ -123,5 +140,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/logs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/logs.js') }}?v={{ range(1, 100000) | random }}"></script>
 {% endblock %}

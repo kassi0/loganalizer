@@ -88,6 +88,10 @@ def _parse_chunk(filepath, start_pos, end_pos, field_indices):
     sc_substatus_idx = field_indices.get('sc-substatus', -1)
     sc_win32_status_idx = field_indices.get('sc-win32-status', -1)
     time_taken_idx = field_indices.get('time-taken', -1)
+    # Suporte a variações de x-forwarded-for
+    xff_idx = field_indices.get('x-forwarded-for', -1)
+    if xff_idx == -1:
+        xff_idx = field_indices.get('cs(x-forwarded-for)', -1)
 
     with open(filepath, 'rb') as f:
         f.seek(start_pos)
@@ -137,6 +141,14 @@ def _parse_chunk(filepath, start_pos, end_pos, field_indices):
             s_ip = get_val(s_ip_idx, '-')
             s_port = get_int(s_port_idx, 80)
             cs_username = get_val(cs_username_idx, '-')
+            
+            # Se x-forwarded-for estiver explícito nos headers ou na última coluna
+            x_forwarded_for = '-'
+            if xff_idx != -1:
+                x_forwarded_for = get_val(xff_idx, '-')
+            elif n_parts > len(field_indices) and n_parts >= 15:
+                # Caso o log tenha uma coluna extra ao final (comum para XFF em IIS atrás de load balancer)
+                x_forwarded_for = parts[-1] if parts[-1] != '-' else '-'
 
             records.append((
                 timestamp,
@@ -154,7 +166,9 @@ def _parse_chunk(filepath, start_pos, end_pos, field_indices):
                 cs_referer,
                 s_ip,
                 s_port,
-                cs_username
+                cs_username,
+                x_forwarded_for,
+                line
             ))
 
     return records

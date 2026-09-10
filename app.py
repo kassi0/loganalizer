@@ -90,6 +90,9 @@ def api_logs():
     ip = request.args.get('ip')
     uri = request.args.get('uri')
     min_time = request.args.get('min_time')
+    xff = request.args.get('xff')
+    query_param = request.args.get('query')
+    port = request.args.get('port')
     sort_by = request.args.get('sort_by', 'id')
     sort_dir = request.args.get('sort_dir', 'desc')
 
@@ -101,6 +104,9 @@ def api_logs():
         ip=ip,
         uri=uri,
         min_time=min_time,
+        xff=xff,
+        query_param=query_param,
+        port=port,
         sort_by=sort_by,
         sort_dir=sort_dir
     )

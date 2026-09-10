@@ -65,13 +65,25 @@ items:
       DB_TYPE: "postgres"
 
   # -----------------------------------------------------------
-  # 4. Deployment
+  # 4. Deployment (com ImageChange Trigger automático)
   # -----------------------------------------------------------
   - apiVersion: apps/v1
     kind: Deployment
     metadata:
       name: loganalizer
       namespace: detran-apps-internos
+      annotations:
+        image.openshift.io/triggers: |-
+          [
+            {
+              "from": {
+                "kind": "ImageStreamTag",
+                "name": "loganalizer:latest",
+                "namespace": "detran-apps-internos"
+              },
+              "fieldPath": "spec.template.spec.containers[?(@.name==\"loganalizer\")].image"
+            }
+          ]
       labels:
         app: loganalizer
         app.kubernetes.io/name: loganalizer
@@ -83,7 +95,7 @@ items:
       strategy:
         type: RollingUpdate
         rollingUpdate:
-          maxUnavailable: 0
+          maxUnavailable: 1
           maxSurge: 1
       template:
         metadata:

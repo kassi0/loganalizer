@@ -39,7 +39,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('filter-status').value = '';
         document.getElementById('filter-method').value = '';
         document.getElementById('filter-ip').value = '';
+        document.getElementById('filter-xff').value = '';
         document.getElementById('filter-uri').value = '';
+        document.getElementById('filter-query').value = '';
+        document.getElementById('filter-port').value = '';
         document.getElementById('filter-min-time').value = '';
         currentSortBy = 'id';
         currentSortDir = 'desc';
@@ -93,7 +96,10 @@ async function fetchLogs() {
     const status = document.getElementById('filter-status').value;
     const method = document.getElementById('filter-method').value;
     const ip = document.getElementById('filter-ip').value.trim();
+    const xff = document.getElementById('filter-xff').value.trim();
     const uri = document.getElementById('filter-uri').value.trim();
+    const queryParam = document.getElementById('filter-query').value.trim();
+    const port = document.getElementById('filter-port').value.trim();
     const minTime = document.getElementById('filter-min-time').value.trim();
 
     const params = new URLSearchParams({
@@ -106,13 +112,16 @@ async function fetchLogs() {
     if (status) params.append('status', status);
     if (method) params.append('method', method);
     if (ip) params.append('ip', ip);
+    if (xff) params.append('xff', xff);
     if (uri) params.append('uri', uri);
+    if (queryParam) params.append('query', queryParam);
+    if (port) params.append('port', port);
     if (minTime) params.append('min_time', minTime);
 
     const tbody = document.getElementById('logs-tbody');
     tbody.innerHTML = `
         <tr>
-            <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+            <td colspan="10" style="text-align: center; padding: 40px; color: var(--text-secondary);">
                 Carregando registros...
             </td>
         </tr>
@@ -128,7 +137,7 @@ async function fetchLogs() {
     } catch (err) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" style="text-align: center; padding: 40px; color: var(--status-5xx);">
+                <td colspan="10" style="text-align: center; padding: 40px; color: var(--status-5xx);">
                     Erro ao carregar logs: ${err.message}
                 </td>
             </tr>
@@ -148,7 +157,7 @@ function renderLogsTable(data) {
     if (!data.records || data.records.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                <td colspan="10" style="text-align: center; padding: 40px; color: var(--text-muted);">
                     Nenhum registro encontrado para os filtros selecionados.
                 </td>
             </tr>
@@ -159,24 +168,36 @@ function renderLogsTable(data) {
     tbody.innerHTML = data.records.map((r, idx) => {
         const statusClass = getStatusClass(r.status);
         const methodClass = `method-${r.method || 'GET'}`;
+        const hasQuery = r.uri_query && r.uri_query !== '-';
+        const displayXff = (r.x_forwarded_for && r.x_forwarded_for !== '-') ? r.x_forwarded_for : '-';
         
         return `
             <tr>
                 <td style="color: var(--text-muted); font-size: 0.8rem;">#${r.id}</td>
                 <td style="font-size: 0.82rem; color: var(--text-secondary);">${escapeHtml(r.timestamp)}</td>
-                <td style="font-family: monospace; font-size: 0.84rem;">${escapeHtml(r.client_ip)}</td>
+                <td style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(r.client_ip)}</td>
+                <td style="font-family: monospace; font-size: 0.82rem; color: ${displayXff !== '-' ? 'var(--accent-cyan)' : 'var(--text-muted)'}; max-width: 140px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(displayXff)}">
+                    ${escapeHtml(displayXff)}
+                </td>
+                <td style="font-size: 0.8rem; color: var(--text-muted); font-family: monospace;">:${r.server_port || 80}</td>
                 <td><span class="method-tag ${methodClass}">${escapeHtml(r.method)}</span></td>
-                <td style="font-family: monospace; font-size: 0.82rem; max-width: 320px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(r.uri_stem)}">
-                    ${escapeHtml(r.uri_stem)}
+                <td style="font-family: monospace; font-size: 0.82rem; max-width: 280px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(r.uri_stem)}${hasQuery ? '?' + escapeHtml(r.uri_query) : ''}">
+                    <span style="color: #38bdf8;">${escapeHtml(r.uri_stem)}</span>
+                    ${hasQuery ? `<span style="color: #fbbf24; font-size: 0.76rem;">?${escapeHtml(r.uri_query)}</span>` : ''}
                 </td>
                 <td><span class="status-pill ${statusClass}">${r.status}</span></td>
                 <td style="font-weight: 500; font-size: 0.82rem; color: ${r.time_taken > 1000 ? '#f59e0b' : 'var(--text-secondary)'};">
                     ${r.time_taken} ms
                 </td>
                 <td>
-                    <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="viewDetails(${idx})">
-                        Ver Mais
-                    </button>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.72rem;" onclick="viewDetails(${idx})" title="Ver Campos Estruturados">
+                            Detalhes
+                        </button>
+                        <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.72rem; color: var(--accent-cyan);" onclick="viewRawLog(${idx})" title="Ver Linha de Log Bruta">
+                            Bruto
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -197,40 +218,99 @@ function viewDetails(index) {
 
     const modalContent = document.getElementById('modal-content');
     modalContent.innerHTML = `
-        <div style="display: grid; grid-template-columns: 140px 1fr; gap: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+        <div style="display: grid; grid-template-columns: 140px 1fr; gap: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 14px;">
             <strong style="color: var(--text-muted);">Timestamp:</strong>
             <div>${escapeHtml(item.timestamp)} UTC</div>
-            <strong style="color: var(--text-muted);">IP do Cliente:</strong>
+            <strong style="color: var(--text-muted);">IP do Cliente (c-ip):</strong>
             <div style="font-family: monospace;">${escapeHtml(item.client_ip)}</div>
+            <strong style="color: var(--accent-cyan);">X-Forwarded-For:</strong>
+            <div style="font-family: monospace; color: var(--accent-cyan); font-weight: 600;">${item.x_forwarded_for || '-'}</div>
+            <strong style="color: var(--text-muted);">Porta (s-port):</strong>
+            <div style="font-family: monospace;">${item.server_port || 80} (Servidor: ${escapeHtml(item.server_ip)})</div>
             <strong style="color: var(--text-muted);">Método HTTP:</strong>
             <div><span class="method-tag method-${item.method}">${escapeHtml(item.method)}</span></div>
             <strong style="color: var(--text-muted);">URI / Endpoint:</strong>
             <div style="font-family: monospace; color: #38bdf8; word-break: break-all;">${escapeHtml(item.uri_stem)}</div>
-            <strong style="color: var(--text-muted);">Query String:</strong>
-            <div style="font-family: monospace; word-break: break-all;">${item.uri_query !== '-' ? escapeHtml(item.uri_query) : '<span style="color: var(--text-muted);">Nenhuma</span>'}</div>
+            <strong style="color: #fbbf24;">Query String:</strong>
+            <div style="font-family: monospace; word-break: break-all; color: #fbbf24; background: rgba(251, 191, 36, 0.08); padding: 4px 8px; border-radius: 4px;">
+                ${item.uri_query && item.uri_query !== '-' ? escapeHtml(item.uri_query) : '<span style="color: var(--text-muted);">Nenhuma (-)</span>'}
+            </div>
             <strong style="color: var(--text-muted);">Status HTTP:</strong>
-            <div><span class="status-pill ${getStatusClass(item.status)}">${item.status}</span> (Sub: ${item.substatus}, Win32: ${item.win32_status})</div>
+            <div><span class="status-pill ${getStatusClass(item.status)}">${item.status}</span> (Substatus: ${item.substatus}, Win32: ${item.win32_status})</div>
             <strong style="color: var(--text-muted);">Tempo de Resposta:</strong>
             <div style="font-weight: 600;">${item.time_taken} ms</div>
-            <strong style="color: var(--text-muted);">Servidor / Porta:</strong>
-            <div>${escapeHtml(item.server_ip)}:${item.server_port}</div>
             <strong style="color: var(--text-muted);">Usuário Autenticado:</strong>
-            <div>${item.username !== '-' ? escapeHtml(item.username) : '<span style="color: var(--text-muted);">Anônimo (-)</span>'}</div>
+            <div>${item.username && item.username !== '-' ? escapeHtml(item.username) : '<span style="color: var(--text-muted);">Anônimo (-)</span>'}</div>
             <strong style="color: var(--text-muted);">Referer:</strong>
-            <div style="word-break: break-all;">${item.referer !== '-' ? escapeHtml(item.referer) : '<span style="color: var(--text-muted);">-</span>'}</div>
+            <div style="word-break: break-all;">${item.referer && item.referer !== '-' ? escapeHtml(item.referer) : '<span style="color: var(--text-muted);">-</span>'}</div>
             <strong style="color: var(--text-muted);">User-Agent:</strong>
             <div style="font-size: 0.8rem; color: var(--text-secondary); word-break: break-all; background: rgba(0,0,0,0.25); padding: 8px; border-radius: 6px;">
                 ${escapeHtml(item.user_agent)}
             </div>
         </div>
+        <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
+            <button class="btn btn-secondary" style="font-size: 0.8rem;" onclick="viewRawLog(${index})">
+                Visualizar Linha de Log Bruta &rarr;
+            </button>
+        </div>
     `;
 
-    const modal = document.getElementById('log-modal');
-    modal.style.display = 'flex';
+    document.getElementById('log-modal').style.display = 'flex';
+}
+
+function viewRawLog(index) {
+    const item = logsCache[index];
+    if (!item) return;
+
+    const rawText = item.raw_log || `${item.timestamp} ${item.server_ip} ${item.method} ${item.uri_stem} ${item.uri_query} ${item.server_port} ${item.username} ${item.client_ip} ${item.user_agent} ${item.referer} ${item.status} ${item.substatus} ${item.win32_status} ${item.time_taken} ${item.x_forwarded_for || ''}`;
+
+    const modalContent = document.getElementById('modal-content');
+    modalContent.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-size: 0.85rem; color: var(--text-secondary);">Registro #${item.id} - Linha original do arquivo IIS</span>
+            <button class="btn btn-primary" id="btn-copy-raw" style="padding: 5px 12px; font-size: 0.75rem;" onclick="copyRawLog()">
+                Copiar Linha
+            </button>
+        </div>
+        <textarea id="raw-log-textarea" readonly style="width: 100%; min-height: 160px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); color: #38bdf8; font-family: monospace; font-size: 0.84rem; padding: 14px; border-radius: var(--radius-sm); resize: vertical; line-height: 1.5;">${escapeHtml(rawText)}</textarea>
+        <div style="margin-top: 14px; display: flex; justify-content: space-between;">
+            <button class="btn btn-secondary" style="font-size: 0.8rem;" onclick="viewDetails(${index})">
+                &larr; Voltar para Detalhes Estruturados
+            </button>
+            <button class="btn btn-secondary" style="font-size: 0.8rem;" onclick="closeModal()">
+                Fechar
+            </button>
+        </div>
+    `;
+
+    document.getElementById('log-modal').style.display = 'flex';
+}
+
+function copyRawLog() {
+    const textarea = document.getElementById('raw-log-textarea');
+    if (!textarea) return;
+    textarea.select();
+    navigator.clipboard.writeText(textarea.value).then(() => {
+        const btn = document.getElementById('btn-copy-raw');
+        if (btn) {
+            btn.textContent = 'Copiado!';
+            setTimeout(() => { btn.textContent = 'Copiar Linha'; }, 1800);
+        }
+    });
 }
 
 function closeModal() {
     document.getElementById('log-modal').style.display = 'none';
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 function escapeHtml(text) {
