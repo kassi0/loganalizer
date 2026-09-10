@@ -1,0 +1,169 @@
+apiVersion: v1
+kind: List
+metadata:
+  name: loganalizer-resources
+items:
+  # -----------------------------------------------------------
+  # 1. ImageStream
+  # -----------------------------------------------------------
+  - apiVersion: image.openshift.io/v1
+    kind: ImageStream
+    metadata:
+      name: loganalizer
+      namespace: detran-apps-internos
+      labels:
+        app: loganalizer
+        app.kubernetes.io/name: loganalizer
+        app.kubernetes.io/part-of: loganalizer
+
+  # -----------------------------------------------------------
+  # 2. BuildConfig (Git via HTTPS público + Docker Strategy)
+  # -----------------------------------------------------------
+  - apiVersion: build.openshift.io/v1
+    kind: BuildConfig
+    metadata:
+      name: loganalizer
+      namespace: detran-apps-internos
+      labels:
+        app: loganalizer
+        app.kubernetes.io/name: loganalizer
+    spec:
+      source:
+        type: Git
+        git:
+          uri: https://github.com/kassi0/loganalizer
+          ref: master
+      strategy:
+        type: Docker
+        dockerStrategy:
+          dockerfilePath: Dockerfile
+      output:
+        to:
+          kind: ImageStreamTag
+          name: loganalizer:latest
+      triggers:
+        - type: ConfigChange
+        - type: ImageChange
+
+  # -----------------------------------------------------------
+  # 3. Secret (Credenciais do PostgreSQL)
+  # -----------------------------------------------------------
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: loganalizer-pg-secret
+      namespace: detran-apps-internos
+      labels:
+        app: loganalizer
+    type: Opaque
+    stringData:
+      POSTGRESQL_HOST: "postgres"
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_USER: "downdetector"
+      POSTGRESQL_PASSWORD: "down@2024"
+      POSTGRESQL_DATABASE: "loganalizer"
+      DB_TYPE: "postgres"
+
+  # -----------------------------------------------------------
+  # 4. Deployment
+  # -----------------------------------------------------------
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: loganalizer
+      namespace: detran-apps-internos
+      labels:
+        app: loganalizer
+        app.kubernetes.io/name: loganalizer
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: loganalizer
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 0
+          maxSurge: 1
+      template:
+        metadata:
+          labels:
+            app: loganalizer
+        spec:
+          containers:
+            - name: loganalizer
+              image: image-registry.openshift-image-registry.svc:5000/detran-apps-internos/loganalizer:latest
+              imagePullPolicy: Always
+              ports:
+                - containerPort: 8080
+                  name: http
+                  protocol: TCP
+              envFrom:
+                - secretRef:
+                    name: loganalizer-pg-secret
+              resources:
+                requests:
+                  cpu: "200m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "2000m"
+                  memory: "2Gi"
+              livenessProbe:
+                httpGet:
+                  path: /
+                  port: 8080
+                initialDelaySeconds: 20
+                periodSeconds: 15
+                timeoutSeconds: 5
+                failureThreshold: 3
+              readinessProbe:
+                httpGet:
+                  path: /
+                  port: 8080
+                initialDelaySeconds: 10
+                periodSeconds: 10
+                timeoutSeconds: 3
+                failureThreshold: 3
+
+  # -----------------------------------------------------------
+  # 5. Service
+  # -----------------------------------------------------------
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: loganalizer
+      namespace: detran-apps-internos
+      labels:
+        app: loganalizer
+        app.kubernetes.io/name: loganalizer
+    spec:
+      selector:
+        app: loganalizer
+      ports:
+        - name: http
+          port: 8080
+          targetPort: 8080
+          protocol: TCP
+      type: ClusterIP
+
+  # -----------------------------------------------------------
+  # 6. Route (Exposição externa OpenShift com TLS edge)
+  # -----------------------------------------------------------
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      name: loganalizer
+      namespace: detran-apps-internos
+      labels:
+        app: loganalizer
+        app.kubernetes.io/name: loganalizer
+    spec:
+      to:
+        kind: Service
+        name: loganalizer
+        weight: 100
+      port:
+        targetPort: http
+      tls:
+        termination: edge
+        insecureEdgeTerminationPolicy: Redirect
