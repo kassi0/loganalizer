@@ -61,7 +61,10 @@
 
     <div style="display: flex; gap: 8px;">
         <button id="btn-apply-filters" class="btn btn-primary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
             Filtrar
         </button>
         <button id="btn-reset-filters" class="btn btn-secondary">Limpar</button>
@@ -70,9 +73,11 @@
 
 <!-- Tabela de Logs e Informações -->
 <div class="card">
-    <div style="padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color);">
+    <div
+        style="padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color);">
         <div style="font-size: 0.9rem; color: var(--text-secondary);">
-            Exibindo <span id="table-total-count" style="color: var(--text-primary); font-weight: 600;">0</span> registros encontrados
+            Exibindo <span id="table-total-count" style="color: var(--text-primary); font-weight: 600;">0</span>
+            registros encontrados
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
             <label for="per-page-select" style="font-size: 0.82rem; color: var(--text-muted);">Por página:</label>
@@ -102,7 +107,7 @@
                     <th>X-Forwarded-For</th>
                     <th>Port</th>
                     <th>Método</th>
-                    <th>URI Path</th>
+                    <th>URI Path / Query</th>
                     <th>Status</th>
                     <th class="sortable-th" data-sort="time_taken" title="Clique para ordenar por Latência">
                         <span>Latência</span>
@@ -125,18 +130,22 @@
     <div class="pagination-controls">
         <button id="btn-prev-page" class="btn btn-secondary" style="font-size: 0.82rem;">&larr; Anterior</button>
         <div style="font-size: 0.88rem; color: var(--text-secondary);">
-            Página <span id="current-page-num" style="font-weight: 600; color: #fff;">1</span> de <span id="total-pages-num" style="font-weight: 600;">1</span>
+            Página <span id="current-page-num" style="font-weight: 600; color: #fff;">1</span> de <span
+                id="total-pages-num" style="font-weight: 600;">1</span>
         </div>
         <button id="btn-next-page" class="btn btn-secondary" style="font-size: 0.82rem;">Próxima &rarr;</button>
     </div>
 </div>
 
 <!-- Modal Detalhes do Log -->
-<div id="log-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); z-index: 9999; align-items: center; justify-content: center;">
-    <div class="card" style="width: 90%; max-width: 700px; max-height: 85vh; overflow-y: auto; padding: 28px; position: relative;">
+<div id="log-modal"
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="card"
+        style="width: 90%; max-width: 700px; max-height: 85vh; overflow-y: auto; padding: 28px; position: relative;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h3 style="font-size: 1.2rem; font-weight: 600;">Detalhes da Requisição IIS</h3>
-            <button id="modal-close" style="background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">&times;</button>
+            <button id="modal-close"
+                style="background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">&times;</button>
         </div>
         <div id="modal-content" style="display: flex; flex-direction: column; gap: 14px; font-size: 0.88rem;"></div>
     </div>
