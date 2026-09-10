@@ -64,25 +64,38 @@ def init_db(drop_existing=False):
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS iis_logs (
-                id SERIAL PRIMARY KEY,
+                id BIGSERIAL PRIMARY KEY,
                 timestamp VARCHAR(64),
                 log_date VARCHAR(32),
                 log_time VARCHAR(32),
                 client_ip VARCHAR(64),
-                method VARCHAR(16),
+                method VARCHAR(32),
                 uri_stem TEXT,
                 uri_query TEXT,
                 status INT,
-                substatus INT,
-                win32_status INT,
-                time_taken INT,
+                substatus BIGINT,
+                win32_status BIGINT,
+                time_taken BIGINT,
                 user_agent TEXT,
                 referer TEXT,
                 server_ip VARCHAR(64),
-                server_port INT,
+                server_port BIGINT,
                 username VARCHAR(128)
             )
         """)
+
+        # Garantir migração de colunas caso a tabela já tenha sido criada anteriormente com INT
+        try:
+            cursor.execute("""
+                ALTER TABLE iis_logs 
+                    ALTER COLUMN id TYPE BIGINT,
+                    ALTER COLUMN substatus TYPE BIGINT,
+                    ALTER COLUMN win32_status TYPE BIGINT,
+                    ALTER COLUMN time_taken TYPE BIGINT,
+                    ALTER COLUMN server_port TYPE BIGINT;
+            """)
+        except Exception:
+            pass
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS analysis_meta (
