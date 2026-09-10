@@ -304,13 +304,13 @@ def get_dashboard_data():
         top_uris = [{"uri_stem": r[0], "count": r[1], "avg_time": float(r[2] or 0)} for r in cursor.fetchall()]
 
         cursor.execute("""
-            SELECT client_ip, COUNT(*) as count 
+            SELECT client_ip, x_forwarded_for, COUNT(*) as count 
             FROM iis_logs 
-            GROUP BY client_ip 
+            GROUP BY client_ip, x_forwarded_for 
             ORDER BY count DESC 
             LIMIT 10
         """)
-        top_ips = [{"client_ip": r[0], "count": r[1]} for r in cursor.fetchall()]
+        top_ips = [{"client_ip": r[0], "x_forwarded_for": r[1] or '-', "count": r[2]} for r in cursor.fetchall()]
 
         cursor.execute("""
             SELECT uri_stem, ROUND(AVG(time_taken), 1) as avg_time, MAX(time_taken) as max_time, COUNT(*) as count
@@ -387,17 +387,25 @@ def get_dashboard_data():
             SELECT 
                 SUBSTR(timestamp, 1, 16) as minute_slot,
                 client_ip,
+                x_forwarded_for,
                 COUNT(*) as count,
                 ROUND(AVG(time_taken), 1) as avg_time,
                 SUM(CASE WHEN status >= 400 THEN 1 ELSE 0 END) as errors
             FROM iis_logs
             WHERE timestamp != '' AND client_ip != '-'
-            GROUP BY minute_slot, client_ip
+            GROUP BY minute_slot, client_ip, x_forwarded_for
             ORDER BY count DESC
             LIMIT 50
         """)
         minute_by_ip = [
-            {"minute_slot": r[0], "client_ip": r[1], "count": r[2], "avg_time": float(r[3] or 0), "errors": int(r[4] or 0)}
+            {
+                "minute_slot": r[0],
+                "client_ip": r[1],
+                "x_forwarded_for": r[2] or '-',
+                "count": r[3],
+                "avg_time": float(r[4] or 0),
+                "errors": int(r[5] or 0)
+            }
             for r in cursor.fetchall()
         ]
 

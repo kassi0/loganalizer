@@ -239,19 +239,27 @@ function renderTopUrisTable(topUris) {
 
 function renderTopIpsTable(topIps) {
     const tbody = document.getElementById('top-ips-tbody');
-    tbody.innerHTML = topIps.map(ip => `
-        <tr>
-            <td style="font-family: monospace; font-size: 0.84rem; color: #f8fafc;">
-                ${escapeHtml(ip.client_ip)}
-            </td>
-            <td style="text-align: right; font-weight: 600;">${ip.count.toLocaleString()}</td>
-            <td style="text-align: right;">
-                <a href="/logs?ip=${encodeURIComponent(ip.client_ip)}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;">
-                    Filtrar Logs
-                </a>
-            </td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = topIps.map(ip => {
+        const hasXff = ip.x_forwarded_for && ip.x_forwarded_for !== '-';
+        const displayLabel = hasXff
+            ? `<span style="color: #f8fafc;">${escapeHtml(ip.client_ip)}</span> <span style="color: var(--text-muted); font-size: 0.76rem;">&rarr;</span> <span style="color: var(--accent-cyan); font-weight: 600;">${escapeHtml(ip.x_forwarded_for)}</span>`
+            : `<span style="color: #f8fafc;">${escapeHtml(ip.client_ip)}</span>`;
+        const filterVal = hasXff ? ip.x_forwarded_for : ip.client_ip;
+
+        return `
+            <tr>
+                <td style="font-family: monospace; font-size: 0.83rem; max-width: 320px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(ip.client_ip)} - ${escapeHtml(ip.x_forwarded_for || '-')}">
+                    ${displayLabel}
+                </td>
+                <td style="text-align: right; font-weight: 600;">${ip.count.toLocaleString()}</td>
+                <td style="text-align: right;">
+                    <a href="/logs?ip=${encodeURIComponent(filterVal)}" class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;">
+                        Filtrar Logs
+                    </a>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function renderSlowestUrisTable(slowestUris) {
@@ -384,20 +392,30 @@ function renderMinuteByIp(items) {
         tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">Nenhum dado por minuto disponível.</td></tr>`;
         return;
     }
-    tbody.innerHTML = items.map(item => `
-        <tr>
-            <td style="font-family: monospace; font-size: 0.82rem; color: var(--text-secondary);">${escapeHtml(item.minute_slot)}</td>
-            <td style="font-family: monospace; font-size: 0.84rem; color: #f8fafc;">${escapeHtml(item.client_ip)}</td>
-            <td style="text-align: right; font-weight: 700; color: #f8fafc;">${item.count.toLocaleString()}</td>
-            <td style="text-align: right; color: var(--text-secondary);">${item.avg_time} ms</td>
-            <td style="text-align: right; font-weight: 600; color: ${item.errors > 0 ? 'var(--status-5xx)' : 'var(--text-muted)'};">${item.errors}</td>
-            <td style="text-align: right;">
-                <a href="/logs?ip=${encodeURIComponent(item.client_ip)}" class="btn btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;">
-                    Filtrar
-                </a>
-            </td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = items.map(item => {
+        const hasXff = item.x_forwarded_for && item.x_forwarded_for !== '-';
+        const displayLabel = hasXff
+            ? `<span style="color: #f8fafc;">${escapeHtml(item.client_ip)}</span> <span style="color: var(--text-muted); font-size: 0.76rem;">&rarr;</span> <span style="color: var(--accent-cyan); font-weight: 600;">${escapeHtml(item.x_forwarded_for)}</span>`
+            : `<span style="color: #f8fafc;">${escapeHtml(item.client_ip)}</span>`;
+        const filterVal = hasXff ? item.x_forwarded_for : item.client_ip;
+
+        return `
+            <tr>
+                <td style="font-family: monospace; font-size: 0.82rem; color: var(--text-secondary);">${escapeHtml(item.minute_slot)}</td>
+                <td style="font-family: monospace; font-size: 0.83rem; max-width: 320px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(item.client_ip)} - ${escapeHtml(item.x_forwarded_for || '-')}">
+                    ${displayLabel}
+                </td>
+                <td style="text-align: right; font-weight: 700; color: #f8fafc;">${item.count.toLocaleString()}</td>
+                <td style="text-align: right; color: var(--text-secondary);">${item.avg_time} ms</td>
+                <td style="text-align: right; font-weight: 600; color: ${item.errors > 0 ? 'var(--status-5xx)' : 'var(--text-muted)'};">${item.errors}</td>
+                <td style="text-align: right;">
+                    <a href="/logs?ip=${encodeURIComponent(filterVal)}" class="btn btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;">
+                        Filtrar
+                    </a>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 function renderMinuteByMethod(items) {
