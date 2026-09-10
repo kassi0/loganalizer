@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Dashboard Analítico{% endblock %}
+
+{% block content %}
+<div id="dashboard-loading" style="text-align: center; padding: 60px 0;">
+    <div style="font-size: 1.1rem; color: var(--text-secondary);">Carregando métricas e gráficos analíticos...</div>
+</div>
+
+<div id="dashboard-content" style="display: none;">
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="card kpi-card">
+            <span class="kpi-title">Total de Requisições</span>
+            <span class="kpi-value" id="kpi-total-req" style="color: var(--primary);">0</span>
+            <span class="kpi-sub">Hits registrados</span>
+        </div>
+        <div class="card kpi-card">
+            <span class="kpi-title">IPs Únicos</span>
+            <span class="kpi-value" id="kpi-unique-ips" style="color: var(--accent-cyan);">0</span>
+            <span class="kpi-sub">Clientes distintos</span>
+        </div>
+        <div class="card kpi-card">
+            <span class="kpi-title">Taxa de Erros</span>
+            <span class="kpi-value" id="kpi-error-rate" style="color: var(--status-4xx);">0%</span>
+            <span class="kpi-sub" id="kpi-error-sub">0 erros (4xx + 5xx)</span>
+        </div>
+        <div class="card kpi-card">
+            <span class="kpi-title">Tempo Médio de Resposta</span>
+            <span class="kpi-value" id="kpi-avg-time" style="color: var(--status-2xx);">0 ms</span>
+            <span class="kpi-sub" id="kpi-max-time">Máx: 0 ms</span>
+        </div>
+    </div>
+
+    <!-- Linha 1 de Gráficos: Timeline e Distribuição de Status -->
+    <div class="charts-grid">
+        <div class="card chart-card-lg">
+            <div class="chart-header">
+                <h3>Volume de Requisições ao Longo do Tempo</h3>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">Requisições vs Erros</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-timeline"></canvas>
+            </div>
+        </div>
+
+        <div class="card chart-card-sm">
+            <div class="chart-header">
+                <h3>Distribuição por Família HTTP</h3>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-status-groups"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Linha 2 de Gráficos: Métodos HTTP e Top Status -->
+    <div class="charts-grid">
+        <div class="card chart-card-sm">
+            <div class="chart-header">
+                <h3>Métodos HTTP</h3>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-methods"></canvas>
+            </div>
+        </div>
+
+        <div class="card chart-card-lg">
+            <div class="chart-header">
+                <h3>Top 10 Códigos de Status HTTP</h3>
+            </div>
+            <div class="chart-container">
+                <canvas id="chart-statuses"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Linha 3 de Tabelas de Agregação: Top URIs e Top Clientes IPs -->
+    <div class="charts-grid">
+        <div class="card chart-card-lg" style="grid-column: span 6;">
+            <div class="chart-header">
+                <h3>Top 10 URIs Mais Requisitadas</h3>
+            </div>
+            <div class="table-wrapper">
+                <table class="table-modern">
+                    <thead>
+                        <tr>
+                            <th>URI Path</th>
+                            <th style="text-align: right;">Requisições</th>
+                            <th style="text-align: right;">Tempo Médio</th>
+                        </tr>
+                    </thead>
+                    <tbody id="top-uris-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card chart-card-lg" style="grid-column: span 6;">
+            <div class="chart-header">
+                <h3>Top 10 IPs de Clientes</h3>
+            </div>
+            <div class="table-wrapper">
+                <table class="table-modern">
+                    <thead>
+                        <tr>
+                            <th>Endereço IP</th>
+                            <th style="text-align: right;">Requisições</th>
+                            <th style="text-align: right;">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="top-ips-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Requisições Mais Lentas (Latência) -->
+    <div class="card" style="padding: 24px; margin-bottom: 28px;">
+        <div class="chart-header">
+            <h3>Top 10 Endpoints com Maior Tempo de Resposta Médio (ms)</h3>
+        </div>
+        <div class="table-wrapper">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th>URI Endpoint</th>
+                        <th style="text-align: right;">Tempo Médio (ms)</th>
+                        <th style="text-align: right;">Tempo Máximo (ms)</th>
+                        <th style="text-align: right;">Acessos</th>
+                    </tr>
+                </thead>
+                <tbody id="slowest-uris-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- SEÇÃO: CONTADORES POR MINUTO (URI PATH, IP, MÉTODO) -->
+    <div class="card" style="padding: 24px; margin-bottom: 28px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+            <div>
+                <h3 style="font-size: 1.15rem; font-weight: 600;">⏱️ Contadores de Requisições por Minuto</h3>
+                <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px;">
+                    Taxa e volume de chamadas minuto a minuto agrupadas por URI Path, IP de Cliente e Método HTTP.
+                </p>
+            </div>
+            <!-- Abas seletoras -->
+            <div style="display: flex; gap: 8px; background: rgba(0, 0, 0, 0.25); padding: 4px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                <button id="tab-btn-uri" class="btn btn-primary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="switchMinuteTab('uri')">
+                    Por URI Path
+                </button>
+                <button id="tab-btn-ip" class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="switchMinuteTab('ip')">
+                    Por IP Cliente
+                </button>
+                <button id="tab-btn-method" class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="switchMinuteTab('method')">
+                    Por Método HTTP
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabela 1: Minuto por URI Path -->
+        <div id="tab-content-uri" class="table-wrapper">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th style="width: 170px;">Minuto (Data/Hora)</th>
+                        <th>URI Path</th>
+                        <th class="sortable-th" data-table="uri" data-field="count" style="text-align: right;" title="Clique para ordenar">
+                            <span>Requisições / min</span>
+                            <span class="sort-icon" id="sort-icon-uri-count">▼</span>
+                        </th>
+                        <th class="sortable-th" data-table="uri" data-field="avg_time" style="text-align: right;" title="Clique para ordenar">
+                            <span>Tempo Médio</span>
+                            <span class="sort-icon" id="sort-icon-uri-avg_time">↕</span>
+                        </th>
+                        <th class="sortable-th" data-table="uri" data-field="errors" style="text-align: right;" title="Clique para ordenar">
+                            <span>Erros (&ge;400)</span>
+                            <span class="sort-icon" id="sort-icon-uri-errors">↕</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="minute-uri-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- Tabela 2: Minuto por IP Cliente -->
+        <div id="tab-content-ip" class="table-wrapper" style="display: none;">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th style="width: 170px;">Minuto (Data/Hora)</th>
+                        <th>Endereço IP</th>
+                        <th class="sortable-th" data-table="ip" data-field="count" style="text-align: right;" title="Clique para ordenar">
+                            <span>Requisições / min</span>
+                            <span class="sort-icon" id="sort-icon-ip-count">▼</span>
+                        </th>
+                        <th class="sortable-th" data-table="ip" data-field="avg_time" style="text-align: right;" title="Clique para ordenar">
+                            <span>Tempo Médio</span>
+                            <span class="sort-icon" id="sort-icon-ip-avg_time">↕</span>
+                        </th>
+                        <th class="sortable-th" data-table="ip" data-field="errors" style="text-align: right;" title="Clique para ordenar">
+                            <span>Erros (&ge;400)</span>
+                            <span class="sort-icon" id="sort-icon-ip-errors">↕</span>
+                        </th>
+                        <th style="text-align: right;">Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="minute-ip-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- Tabela 3: Minuto por Método -->
+        <div id="tab-content-method" class="table-wrapper" style="display: none;">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th style="width: 170px;">Minuto (Data/Hora)</th>
+                        <th>Método HTTP</th>
+                        <th class="sortable-th" data-table="method" data-field="count" style="text-align: right;" title="Clique para ordenar">
+                            <span>Requisições / min</span>
+                            <span class="sort-icon" id="sort-icon-method-count">▼</span>
+                        </th>
+                        <th class="sortable-th" data-table="method" data-field="avg_time" style="text-align: right;" title="Clique para ordenar">
+                            <span>Tempo Médio</span>
+                            <span class="sort-icon" id="sort-icon-method-avg_time">↕</span>
+                        </th>
+                        <th class="sortable-th" data-table="method" data-field="errors" style="text-align: right;" title="Clique para ordenar">
+                            <span>Erros (&ge;400)</span>
+                            <span class="sort-icon" id="sort-icon-method-errors">↕</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="minute-method-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ range(1, 100000) | random }}"></script>
+{% endblock %}

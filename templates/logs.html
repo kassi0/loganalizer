@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Visualizador e Filtros de Logs{% endblock %}
+
+{% block content %}
+<!-- Barra de Filtros -->
+<div class="filter-bar">
+    <div class="filter-group">
+        <label for="filter-status">Status HTTP</label>
+        <select id="filter-status" class="filter-select">
+            <option value="">Todos os Status</option>
+            <option value="2xx">2xx (Sucesso)</option>
+            <option value="3xx">3xx (Redirecionamento)</option>
+            <option value="4xx">4xx (Erro do Cliente)</option>
+            <option value="5xx">5xx (Erro do Servidor)</option>
+            {% for st in filter_options.statuses %}
+            <option value="{{ st }}">{{ st }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label for="filter-method">Método HTTP</label>
+        <select id="filter-method" class="filter-select">
+            <option value="">Todos os Métodos</option>
+            {% for m in filter_options.methods %}
+            <option value="{{ m }}">{{ m }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="filter-group">
+        <label for="filter-ip">IP do Cliente (c-ip)</label>
+        <input type="text" id="filter-ip" class="filter-input" placeholder="Ex: 192.168.1.50">
+    </div>
+
+    <div class="filter-group" style="flex: 2;">
+        <label for="filter-uri">URI / Caminho (cs-uri-stem)</label>
+        <input type="text" id="filter-uri" class="filter-input" placeholder="Ex: /api/v1/auth, .aspx, .png">
+    </div>
+
+    <div class="filter-group">
+        <label for="filter-min-time">Tempo Mínimo (ms)</label>
+        <input type="number" id="filter-min-time" class="filter-input" placeholder="Ex: 500">
+    </div>
+
+    <div style="display: flex; gap: 8px;">
+        <button id="btn-apply-filters" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            Filtrar
+        </button>
+        <button id="btn-reset-filters" class="btn btn-secondary">Limpar</button>
+    </div>
+</div>
+
+<!-- Tabela de Logs e Informações -->
+<div class="card">
+    <div style="padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color);">
+        <div style="font-size: 0.9rem; color: var(--text-secondary);">
+            Exibindo <span id="table-total-count" style="color: var(--text-primary); font-weight: 600;">0</span> registros encontrados
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <label for="per-page-select" style="font-size: 0.82rem; color: var(--text-muted);">Por página:</label>
+            <select id="per-page-select" class="filter-select" style="padding: 6px 12px; font-size: 0.82rem;">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="table-modern">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">ID</th>
+                    <th class="sortable-th" data-sort="timestamp" title="Clique para ordenar por Data e Hora">
+                        <span>Data e Hora (UTC)</span>
+                        <span class="sort-icon" id="sort-icon-timestamp">↕</span>
+                    </th>
+                    <th>IP Cliente</th>
+                    <th>Método</th>
+                    <th>URI Path</th>
+                    <th>Status</th>
+                    <th class="sortable-th" data-sort="time_taken" title="Clique para ordenar por Latência">
+                        <span>Latência</span>
+                        <span class="sort-icon" id="sort-icon-time_taken">↕</span>
+                    </th>
+                    <th>Detalhes</th>
+                </tr>
+            </thead>
+            <tbody id="logs-tbody">
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        Carregando registros...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Paginação -->
+    <div class="pagination-controls">
+        <button id="btn-prev-page" class="btn btn-secondary" style="font-size: 0.82rem;">&larr; Anterior</button>
+        <div style="font-size: 0.88rem; color: var(--text-secondary);">
+            Página <span id="current-page-num" style="font-weight: 600; color: #fff;">1</span> de <span id="total-pages-num" style="font-weight: 600;">1</span>
+        </div>
+        <button id="btn-next-page" class="btn btn-secondary" style="font-size: 0.82rem;">Próxima &rarr;</button>
+    </div>
+</div>
+
+<!-- Modal Detalhes do Log -->
+<div id="log-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="card" style="width: 90%; max-width: 700px; max-height: 85vh; overflow-y: auto; padding: 28px; position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="font-size: 1.2rem; font-weight: 600;">Detalhes da Requisição IIS</h3>
+            <button id="modal-close" style="background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer;">&times;</button>
+        </div>
+        <div id="modal-content" style="display: flex; flex-direction: column; gap: 14px; font-size: 0.88rem;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/logs.js') }}"></script>
+{% endblock %}
