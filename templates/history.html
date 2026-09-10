@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block page_title %}Histórico de Análises de Logs{% endblock %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+        <div>
+            <h2 style="font-size: 1.5rem; font-weight: 700; margin-bottom: 4px;">Histórico de Análises</h2>
+            <p style="color: var(--text-secondary); font-size: 0.88rem;">
+                Gerencie todos os lotes de logs enviados. Por padrão, cada análise é <strong>removida automaticamente após 24 horas</strong>, a menos que marcada como <strong>Persistente</strong>.
+            </p>
+        </div>
+        <div>
+            <a href="{{ url_for('index') }}" class="btn btn-primary" style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Nova Análise de Log
+            </a>
+        </div>
+    </div>
+
+    {% if not batches or batches|length == 0 %}
+    <div class="card" style="padding: 60px 24px; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 16px;">📂</div>
+        <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 8px;">Nenhuma análise no histórico</h3>
+        <p style="color: var(--text-secondary); max-width: 480px; margin: 0 auto 24px auto; font-size: 0.9rem;">
+            Os logs analisados anteriormente foram expirados após 24 horas ou ainda não foi feito upload de nenhum arquivo.
+        </p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">Fazer Upload de Log</a>
+    </div>
+    {% else %}
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div class="table-responsive">
+            <table class="data-table" id="history-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">#</th>
+                        <th>Arquivo de Log</th>
+                        <th>Data do Upload</th>
+                        <th>Registros</th>
+                        <th>Tempo / CPUs</th>
+                        <th>Retenção</th>
+                        <th style="text-align: right; width: 340px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in batches %}
+                    <tr id="batch-row-{{ b.id }}" style="{% if b.id == active_batch_id %}background: rgba(56, 189, 248, 0.04);{% endif %}">
+                        <td style="color: var(--text-muted); font-size: 0.85rem;">{{ b.id }}</td>
+                        <td>
+                            <div style="font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                                {{ b.filename }}
+                                {% if b.id == active_batch_id %}
+                                <span style="font-size: 0.65rem; background: var(--primary); color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 700;">ATIVA</span>
+                                {% endif %}
+                            </div>
+                            <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">UUID: {{ b.batch_uuid[:8] }}...</div>
+                        </td>
+                        <td style="color: var(--text-secondary); font-size: 0.85rem; white-space: nowrap;">
+                            {{ b.uploaded_at[:19] }}
+                        </td>
+                        <td style="font-weight: 600; color: var(--accent-cyan);">
+                            {{ "{:,}".format(b.total_lines) }}
+                        </td>
+                        <td style="font-size: 0.82rem; color: var(--text-secondary);">
+                            {{ b.elapsed_seconds }}s <span style="color: var(--text-muted);">({{ b.cores_used }} CPUs)</span>
+                        </td>
+                        <td id="retention-cell-{{ b.id }}">
+                            {% if b.is_persistent %}
+                            <span class="status-badge" style="background: rgba(16, 185, 129, 0.15); color: var(--status-2xx); border: 1px solid rgba(16, 185, 129, 0.3);">
+                                🔒 Permanente
+                            </span>
+                            {% else %}
+                            <span class="status-badge" style="background: rgba(245, 158, 11, 0.15); color: var(--status-4xx); border: 1px solid rgba(245, 158, 11, 0.3);" title="Expira em 24h a partir do upload">
+                                ⏳ {{ b.remaining_time }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right; white-space: nowrap;">
+                            <div style="display: inline-flex; gap: 6px;">
+                                <a href="{{ url_for('dashboard', batch_id=b.id) }}" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.78rem;" title="Abrir no Dashboard">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+                                    Dashboard
+                                </a>
+                                <a href="{{ url_for('logs', batch_id=b.id) }}" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.78rem;" title="Ver Logs Deste Lote">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line></svg>
+                                    Logs
+                                </a>
+                                <button onclick="togglePersistence({{ b.id }})" id="btn-toggle-{{ b.id }}" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.78rem;" title="Alternar entre expiração de 24h e permanente">
+                                    {% if b.is_persistent %}
+                                    <span style="color: var(--status-4xx);">Tornar 24h</span>
+                                    {% else %}
+                                    <span style="color: var(--status-2xx);">Fixar</span>
+                                    {% endif %}
+                                </button>
+                                <button onclick="confirmDeleteBatch({{ b.id }}, '{{ b.filename }}')" class="btn btn-secondary" style="padding: 6px 10px; font-size: 0.78rem; border-color: rgba(239, 68, 68, 0.4); color: var(--status-5xx);" title="Excluir lote permanentemente do banco">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function togglePersistence(batchId) {
+    const btn = document.getElementById(`btn-toggle-${batchId}`);
+    btn.disabled = true;
+    try {
+        const res = await fetch(`/api/batches/${batchId}/toggle-persist`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Erro ao alternar persistência: ' + (data.error || 'Erro desconhecido'));
+            btn.disabled = false;
+        }
+    } catch (e) {
+        alert('Falha na comunicação: ' + e.message);
+        btn.disabled = false;
+    }
+}
+
+async function confirmDeleteBatch(batchId, filename) {
+    if (!confirm(`Deseja realmente excluir todos os registros de "${filename}" (ID: ${batchId}) do banco de dados imediatamente? Esta ação não pode ser desfeita.`)) {
+        return;
+    }
+    
+    try {
+        const res = await fetch(`/api/batches/${batchId}/delete`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            const row = document.getElementById(`batch-row-${batchId}`);
+            if (row) row.remove();
+            window.location.reload();
+        } else {
+            alert('Erro ao excluir análise: ' + (data.error || 'Erro desconhecido'));
+        }
+    } catch (e) {
+        alert('Falha na comunicação: ' + e.message);
+    }
+}
+</script>
+{% endblock %}

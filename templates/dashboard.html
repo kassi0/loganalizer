@@ -8,6 +8,20 @@
 </div>
 
 <div id="dashboard-content" style="display: none;">
+    <!-- Barra de Controles do Dashboard: Opção de Porta no X-Forwarded-For -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; background: rgba(255, 255, 255, 0.02); padding: 12px 18px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+            <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary);">Configuração de Análise de IPs</span>
+        </div>
+
+        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; font-size: 0.88rem; color: var(--text-secondary);">
+            <input type="checkbox" id="toggle-ip-port" checked style="width: 17px; height: 17px; accent-color: var(--accent-cyan); cursor: pointer;">
+            <span>Contabilizar X-Forwarded-For <strong>com porta de comunicação</strong></span>
+            <span id="ip-port-badge" class="badge-info" style="font-size: 0.72rem; padding: 2px 8px; border-color: rgba(56, 189, 248, 0.3); color: var(--accent-cyan);">Com Porta</span>
+        </label>
+    </div>
+
     <!-- KPI Cards -->
     <div class="kpi-grid">
         <div class="card kpi-card">
@@ -18,7 +32,7 @@
         <div class="card kpi-card">
             <span class="kpi-title">IPs Únicos</span>
             <span class="kpi-value" id="kpi-unique-ips" style="color: var(--accent-cyan);">0</span>
-            <span class="kpi-sub">Clientes distintos</span>
+            <span class="kpi-sub" id="kpi-unique-sub">Clientes distintos</span>
         </div>
         <div class="card kpi-card">
             <span class="kpi-title">Taxa de Erros</span>
@@ -149,7 +163,10 @@
                     Por URI Path
                 </button>
                 <button id="tab-btn-ip" class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="switchMinuteTab('ip')">
-                    Por IP Cliente
+                    Por IP Cliente (Minuto)
+                </button>
+                <button id="tab-btn-total-ip" class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="switchMinuteTab('total-ip')">
+                    Consolidado por IP (Total)
                 </button>
                 <button id="tab-btn-method" class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.8rem;" onclick="switchMinuteTab('method')">
                     Por Método HTTP
@@ -205,6 +222,31 @@
                     </tr>
                 </thead>
                 <tbody id="minute-ip-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- Tabela 2B: Consolidado Geral por IP (Sem repetição de minuto) -->
+        <div id="tab-content-total-ip" class="table-wrapper" style="display: none;">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th>IP Cliente - X-Forwarded-For</th>
+                        <th class="sortable-th" data-table="total-ip" data-field="count" style="text-align: right;" title="Clique para ordenar">
+                            <span>Total Requisições</span>
+                            <span class="sort-icon" id="sort-icon-total-ip-count">▼</span>
+                        </th>
+                        <th class="sortable-th" data-table="total-ip" data-field="avg_time" style="text-align: right;" title="Clique para ordenar">
+                            <span>Tempo Médio</span>
+                            <span class="sort-icon" id="sort-icon-total-ip-avg_time">↕</span>
+                        </th>
+                        <th class="sortable-th" data-table="total-ip" data-field="errors" style="text-align: right;" title="Clique para ordenar">
+                            <span>Erros (&ge;400)</span>
+                            <span class="sort-icon" id="sort-icon-total-ip-errors">↕</span>
+                        </th>
+                        <th style="text-align: right;">Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="total-ip-tbody"></tbody>
             </table>
         </div>
 

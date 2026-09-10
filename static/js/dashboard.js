@@ -1,10 +1,44 @@
+let chartTimelineInstance = null;
+let chartStatusGroupsInstance = null;
+let chartMethodsInstance = null;
+let chartStatusesInstance = null;
+
 document.addEventListener('DOMContentLoaded', () => {
     fetchDashboardData();
+
+    const togglePort = document.getElementById('toggle-ip-port');
+    if (togglePort) {
+        togglePort.addEventListener('change', () => {
+            const badge = document.getElementById('ip-port-badge');
+            if (badge) {
+                if (togglePort.checked) {
+                    badge.textContent = 'Com Porta';
+                    badge.style.color = 'var(--accent-cyan)';
+                    badge.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+                } else {
+                    badge.textContent = 'Sem Porta (Apenas IP)';
+                    badge.style.color = 'var(--status-2xx)';
+                    badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+                }
+            }
+            fetchDashboardData();
+        });
+    }
 });
 
 async function fetchDashboardData() {
     try {
-        const response = await fetch('/api/dashboard-data');
+        const urlParams = new URLSearchParams(window.location.search);
+        const batchId = urlParams.get('batch_id');
+        const togglePort = document.getElementById('toggle-ip-port');
+        const includePort = togglePort ? togglePort.checked : true;
+
+        let apiUrl = `/api/dashboard-data?include_port=${includePort}`;
+        if (batchId) {
+            apiUrl += `&batch_id=${batchId}`;
+        }
+
+        const response = await fetch(apiUrl);
         if (!response.ok) {
             throw new Error('Falha ao carregar dados do dashboard');
         }
@@ -24,6 +58,11 @@ function renderDashboard(data) {
     // 1. Atualizar KPIs
     document.getElementById('kpi-total-req').textContent = data.total_requests.toLocaleString();
     document.getElementById('kpi-unique-ips').textContent = data.unique_ips.toLocaleString();
+    const togglePort = document.getElementById('toggle-ip-port');
+    const uniqueSub = document.getElementById('kpi-unique-sub');
+    if (uniqueSub) {
+        uniqueSub.textContent = (togglePort && !togglePort.checked) ? 'Clientes distintos (Sem porta)' : 'Clientes distintos (Com porta)';
+    }
     document.getElementById('kpi-error-rate').textContent = `${data.error_rate}%`;
     document.getElementById('kpi-error-sub').textContent = `${data.total_errors.toLocaleString()} erros (4xx/5xx)`;
     document.getElementById('kpi-avg-time').textContent = `${data.avg_time} ms`;
@@ -56,7 +95,9 @@ function renderTimelineChart(timeline) {
     const totals = timeline.map(t => t.count);
     const errors = timeline.map(t => t.errors);
 
-    new Chart(ctx, {
+    if (chartTimelineInstance) chartTimelineInstance.destroy();
+
+    chartTimelineInstance = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
@@ -120,7 +161,9 @@ function renderStatusGroupsChart(statusGroups) {
 
     const backgroundColors = labels.map(l => colorsMap[l] || '#94a3b8');
 
-    new Chart(ctx, {
+    if (chartStatusGroupsInstance) chartStatusGroupsInstance.destroy();
+
+    chartStatusGroupsInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: labels,
@@ -150,7 +193,9 @@ function renderMethodsChart(methods) {
     const labels = methods.map(m => m.method);
     const counts = methods.map(m => m.count);
 
-    new Chart(ctx, {
+    if (chartMethodsInstance) chartMethodsInstance.destroy();
+
+    chartMethodsInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
@@ -193,7 +238,9 @@ function renderStatusesChart(topStatuses) {
     const labels = topStatuses.map(s => `HTTP ${s.status}`);
     const counts = topStatuses.map(s => s.count);
 
-    new Chart(ctx, {
+    if (chartStatusesInstance) chartStatusesInstance.destroy();
+
+    chartStatusesInstance = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
@@ -276,28 +323,30 @@ function renderSlowestUrisTable(slowestUris) {
     `).join('');
 }
 
-// === RENDERIZAÇÃO E ORDENAÇÃO DOS CONTADORES POR MINUTO ===
-
 let minuteDataCache = {
     uri: [],
     ip: [],
+    'total-ip': [],
     method: []
 };
 
 let minuteSortState = {
     uri: { field: 'count', dir: 'desc' },
     ip: { field: 'count', dir: 'desc' },
+    'total-ip': { field: 'count', dir: 'desc' },
     method: { field: 'count', dir: 'desc' }
 };
 
 function renderMinuteTables(data) {
     minuteDataCache.uri = data.minute_by_uri || [];
     minuteDataCache.ip = data.minute_by_ip || [];
+    minuteDataCache['total-ip'] = data.total_by_ip || [];
     minuteDataCache.method = data.minute_by_method || [];
 
     setupMinuteTableSorting();
     refreshMinuteTable('uri');
     refreshMinuteTable('ip');
+    refreshMinuteTable('total-ip');
     refreshMinuteTable('method');
 }
 
@@ -364,6 +413,7 @@ function refreshMinuteTable(tableKey) {
 
     if (tableKey === 'uri') renderMinuteByUri(items);
     else if (tableKey === 'ip') renderMinuteByIp(items);
+    else if (tableKey === 'total-ip') renderTotalByIp(items);
     else if (tableKey === 'method') renderMinuteByMethod(items);
 }
 
@@ -418,6 +468,38 @@ function renderMinuteByIp(items) {
     }).join('');
 }
 
+function renderTotalByIp(items) {
+    const tbody = document.getElementById('total-ip-tbody');
+    if (!tbody) return;
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">Nenhum dado por IP disponível.</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = items.map(item => {
+        const hasXff = item.x_forwarded_for && item.x_forwarded_for !== '-';
+        const displayLabel = hasXff
+            ? `<span style="color: #f8fafc;">${escapeHtml(item.client_ip)}</span> <span style="color: var(--text-muted); font-size: 0.76rem;">&rarr;</span> <span style="color: var(--accent-cyan); font-weight: 600;">${escapeHtml(item.x_forwarded_for)}</span>`
+            : `<span style="color: #f8fafc;">${escapeHtml(item.client_ip)}</span>`;
+        const filterVal = hasXff ? item.x_forwarded_for : item.client_ip;
+
+        return `
+            <tr>
+                <td style="font-family: monospace; font-size: 0.83rem; max-width: 380px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(item.client_ip)} - ${escapeHtml(item.x_forwarded_for || '-')}">
+                    ${displayLabel}
+                </td>
+                <td style="text-align: right; font-weight: 700; color: #f8fafc;">${item.count.toLocaleString()}</td>
+                <td style="text-align: right; color: var(--text-secondary);">${item.avg_time} ms</td>
+                <td style="text-align: right; font-weight: 600; color: ${item.errors > 0 ? 'var(--status-5xx)' : 'var(--text-muted)'};">${item.errors}</td>
+                <td style="text-align: right;">
+                    <a href="/logs?ip=${encodeURIComponent(filterVal)}" class="btn btn-secondary" style="padding: 3px 8px; font-size: 0.72rem;">
+                        Filtrar
+                    </a>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
 function renderMinuteByMethod(items) {
     const tbody = document.getElementById('minute-method-tbody');
     if (!tbody) return;
@@ -437,7 +519,7 @@ function renderMinuteByMethod(items) {
 }
 
 function switchMinuteTab(tab) {
-    const tabs = ['uri', 'ip', 'method'];
+    const tabs = ['uri', 'ip', 'total-ip', 'method'];
     tabs.forEach(t => {
         const content = document.getElementById(`tab-content-${t}`);
         const btn = document.getElementById(`tab-btn-${t}`);

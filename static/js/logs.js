@@ -109,6 +109,11 @@ async function fetchLogs() {
         sort_dir: currentSortDir
     });
 
+    const urlPageParams = new URLSearchParams(window.location.search);
+    if (urlPageParams.get('batch_id')) {
+        params.append('batch_id', urlPageParams.get('batch_id'));
+    }
+
     if (status) params.append('status', status);
     if (method) params.append('method', method);
     if (ip) params.append('ip', ip);

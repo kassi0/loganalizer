@@ -24,6 +24,11 @@ Sistema Web de alta performance construído em **Python Flask** para ingestão, 
   - Filtros instantâneos por Status HTTP (2xx, 3xx, 4xx, 5xx ou código específico), Método, IP de Origem, URI e Tempo Mínimo de Resposta.
   - Ordenação dinâmica por clique em **Data/Hora** e **Latência** (Crescente/Decrescente).
   - Modal com visão completa da requisição: *User-Agent*, *Referer*, *Query String*, *Substatus*, *Win32-Status*, *Servidor/Porta* e *Usuário autenticado*.
+- **Histórico de Análises & Retenção de Dados**:
+  - **Retenção Padrão de 24 Horas**: Logs são purgados automaticamente após 24h para economizar armazenamento.
+  - **Modo Persistente (Fixar)**: Permite marcar análises importantes como permanentes para que nunca sejam apagadas.
+  - **Exclusão Manual Imediata**: Botão para apagar qualquer análise e liberar espaço do banco de dados na hora.
+  - **Alternância entre Análises**: Seletor global no topo e tela dedicada de histórico (`/history`) para alternar entre diferentes arquivos analisados.
 - **Compatibilidade Híbrida de Banco de Dados**:
   - **PostgreSQL 15+** nativo para produção/OpenShift via conexão de alta performance.
   - **SQLite** automático para desenvolvimento local e testes rápidos sem infraestrutura externa.
